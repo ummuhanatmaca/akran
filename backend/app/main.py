@@ -41,24 +41,17 @@ async def periodic_opportunity_verifier():
             print(f"Periodic opportunity verification error: {e}")
             await asyncio.sleep(60)
 
+from app.core.database import ensure_database_schema
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables and seed
+    # Startup: create tables and verify schema
     Base.metadata.create_all(bind=engine)
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        try:
-            cols = [row[1] for row in conn.execute(text("PRAGMA table_info(study_materials)")).fetchall()]
-            if cols:
-                if "sha256_hash" not in cols:
-                    conn.execute(text("ALTER TABLE study_materials ADD COLUMN sha256_hash VARCHAR(64)"))
-                if "scan_status" not in cols:
-                    conn.execute(text("ALTER TABLE study_materials ADD COLUMN scan_status VARCHAR(30) DEFAULT 'clean' NOT NULL"))
-                if "security_note" not in cols:
-                    conn.execute(text("ALTER TABLE study_materials ADD COLUMN security_note VARCHAR(255)"))
-                conn.commit()
-        except Exception:
-            pass
+    try:
+        ensure_database_schema(engine)
+    except Exception as e:
+        print(f"Startup schema notice: {e}")
+
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     try:
         seed_database()

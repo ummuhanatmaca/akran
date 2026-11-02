@@ -137,9 +137,13 @@ def admin_sync_opportunities(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    from app.services.opportunity_verifier import verify_and_sync_opportunities
-    result = verify_and_sync_opportunities(db)
-    return result
+    try:
+        from app.services.opportunity_verifier import verify_and_sync_opportunities
+        result = verify_and_sync_opportunities(db)
+        return result
+    except Exception as e:
+        import traceback
+        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
 
 @router.get("/opportunities/sync-logs")
 def list_sync_logs(
