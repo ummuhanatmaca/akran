@@ -128,6 +128,69 @@ def download_material(
         headers=secure_headers
     )
 
+@router.put("/{material_id}", response_model=MaterialOut)
+def update_material(
+    material_id: int,
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    course_id: Optional[int] = Form(None),
+    topic_id: Optional[int] = Form(None),
+    file: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    m = db.query(StudyMaterial).filter(StudyMaterial.id == material_id).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Materyal bulunamadı.")
+
+    if m.uploader_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Bu materyali düzenleme yetkiniz yok.")
+
+    if course_id is not None:
+        course = db.query(Course).filter(Course.id == course_id).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="Seçilen ders bulunamadı.")
+        m.course_id = course_id
+
+    if topic_id is not None:
+        if topic_id > 0:
+            topic = db.query(Topic).filter(Topic.id == topic_id).first()
+            m.topic_id = topic.id if topic else None
+        else:
+            m.topic_id = None
+
+    if title is not None and title.strip():
+        m.title = title.strip()
+
+    if description is not None:
+        m.description = description.strip() if description.strip() else None
+
+    # Handle file replacement if a new file is uploaded
+    if file and file.filename:
+        # Delete old file safely if exists
+        if m.file_path and os.path.exists(m.file_path):
+            try:
+                os.remove(m.file_path)
+            except Exception:
+                pass
+
+        stored = sanitize_and_save_file(file)
+        m.file_path = stored["file_path"]
+        m.file_name = stored["file_name"]
+        m.file_size = stored["file_size"]
+        m.mime_type = stored["mime_type"]
+        m.file_extension = stored["file_extension"]
+        m.sha256_hash = stored["sha256_hash"]
+        m.scan_status = stored["scan_status"]
+        m.security_note = stored["security_note"]
+
+    db.commit()
+    db.refresh(m)
+
+    out = MaterialOut.model_validate(m)
+    out.uploader_name = m.uploader.profile.full_name if m.uploader and m.uploader.profile else "Öğrenci"
+    return out
+
 @router.delete("/{material_id}")
 def delete_material(
     material_id: int,
