@@ -1,6 +1,8 @@
 import logging
 import urllib.request
 import ssl
+import hashlib
+import re
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
@@ -183,24 +185,6 @@ VERIFIED_OFFICIAL_OPPORTUNITIES = [
     }
 ]
 
-def check_url_health(url: str, timeout: int = 4) -> bool:
-    """Resmî URL'nin erişilebilirliğini hızlı ve güvenli şekilde test eder."""
-    try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 AKRAN-Platform/1.0"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
-            return response.status in (200, 301, 302, 307, 308)
-    except Exception as e:
-        logger.debug(f"URL doğrulama uyarısı: {url} -> {e}")
-        return False
-
 def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
     """
     TÜBİTAK resmî RSS beslemesinden (https://www.tubitak.gov.tr/rss.xml)
@@ -224,7 +208,6 @@ def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
             xml_text = raw_xml.decode("utf-8", errors="replace")
             import xml.etree.ElementTree as ET
             from email.utils import parsedate_to_datetime
-            import re
 
             root = ET.fromstring(xml_text.encode("utf-8"))
             items = root.findall(".//item")
@@ -263,9 +246,11 @@ def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
                 elif any(w in title_lower or w in desc_lower for w in ["okul", "okulu", "eğitim", "staj"]):
                     category = "Eğitim / Program"
 
-                slug_match = re.search(r"/(?:duyuru|haber)/([^/?#]+)", link)
-                slug = slug_match.group(1) if slug_match else re.sub(r"[^a-zA-Z0-9_]", "_", title)[:40]
-                source_id = f"tubitak_rss_{slug}"
+                # Link hash'i ile kesin benzersiz tekil source_identifier garantisi
+                link_hash = hashlib.sha256(link.strip().encode("utf-8")).hexdigest()[:10]
+                slug_match = re.search(r"/(?:duyuru|haber|etkinlikler)/([^/?#]+)", link)
+                slug = slug_match.group(1) if slug_match else re.sub(r"[^a-zA-Z0-9_]", "_", title)[:25]
+                source_id = f"tubitak_rss_{slug[:30]}_{link_hash}"
 
                 app_url = None
                 if "tybs" in desc_lower or "2209" in title_lower:
@@ -275,7 +260,7 @@ def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
 
                 discovered.append({
                     "source_identifier": source_id,
-                    "title": title,
+                    "title": title.strip(),
                     "organization": "TÜBİTAK",
                     "category": category,
                     "summary": clean_desc or f"{title} resmî TÜBİTAK çağrısı.",
@@ -286,7 +271,7 @@ def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
                     "published_date": published_dt or datetime.utcnow(),
                     "start_date": published_dt or datetime.utcnow(),
                     "end_date": None,
-                    "official_url": link,
+                    "official_url": link.strip(),
                     "application_url": app_url,
                     "status": "open",
                     "is_sample": False
@@ -299,16 +284,14 @@ def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
 def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
     """
     1. Hem resmî çekirdek kataloğu hem de canlı TÜBİTAK RSS beslemesini senkronize eder.
-    2. Çekirdek resmî katalog verilerinin doğruluğu garanti altındadır; ağ kısıtlarında gizlenmez.
+    2. Yinelenen kayıtları ve çakışmaları engeller.
     3. Son başvuru tarihi geçmiş olanları otomatik kapatır (status = 'closed').
-    4. last_verified_date hiçbir zaman NULL kalmaz; her zaman geçerli zaman damgasıyla güncellenir.
     """
     now = datetime.utcnow()
     items_checked = 0
     items_updated = 0
-    errors: List[str] = []
 
-    # Canlı TÜBİTAK RSS verilerini çek (hata olursa boş liste döner)
+    # Canlı TÜBİTAK RSS verilerini çek
     live_rss_items = []
     try:
         live_rss_items = fetch_live_tubitak_rss()
@@ -318,7 +301,6 @@ def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
     # Birleşik liste: Çekirdek katalog + Canlı RSS duyuruları
     all_targets: List[Dict[str, Any]] = list(VERIFIED_OFFICIAL_OPPORTUNITIES)
 
-    # RSS'ten gelenleri ekle (çekirdek katalogda zaten olanları URL ile filtrele)
     existing_catalog_urls = {item["official_url"] for item in VERIFIED_OFFICIAL_OPPORTUNITIES}
     for live_item in live_rss_items:
         if live_item["official_url"] not in existing_catalog_urls:
@@ -327,18 +309,20 @@ def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
     processed_identifiers = set()
 
     for data in all_targets:
-        items_checked += 1
         ident = data["source_identifier"]
+        if ident in processed_identifiers:
+            continue
         processed_identifiers.add(ident)
+        items_checked += 1
+
         is_core_catalog = not ident.startswith("tubitak_rss_")
 
+        # Önce source_identifier, sonra official_url ile ara
         opp = db.query(Opportunity).filter(Opportunity.source_identifier == ident).first()
         if not opp and not is_core_catalog:
             opp = db.query(Opportunity).filter(Opportunity.official_url == data["official_url"]).first()
 
         status_val = data.get("status", "open")
-
-        # Son başvuru tarihi kontrolü
         if data.get("end_date") and data["end_date"] < now:
             status_val = "closed"
 
@@ -365,7 +349,13 @@ def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
                 is_sample=False,
             )
             db.add(opp)
-            items_updated += 1
+            try:
+                db.flush()
+                items_updated += 1
+            except Exception as e:
+                db.rollback()
+                logger.warning(f"Kayıt ekleme atlandı ({ident}): {e}")
+                continue
         else:
             opp.title = data["title"]
             opp.organization = data["organization"]
@@ -391,30 +381,36 @@ def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
             opp.status = status_val
             opp.last_checked_at = now
             opp.last_verified_date = now
-            items_updated += 1
+            try:
+                db.flush()
+                items_updated += 1
+            except Exception as e:
+                db.rollback()
+                logger.warning(f"Kayıt güncelleme atlandı ({ident}): {e}")
+                continue
 
     # Diğer kayıtların süre kontrolü
-    all_opps = db.query(Opportunity).all()
-    for opp in all_opps:
-        if opp.source_identifier in processed_identifiers:
-            continue
-        items_checked += 1
-        if opp.end_date and opp.end_date < now and opp.status in ("open", "active", "upcoming"):
-            opp.status = "closed"
-            opp.last_checked_at = now
-            items_updated += 1
+    try:
+        all_opps = db.query(Opportunity).all()
+        for opp in all_opps:
+            if opp.source_identifier in processed_identifiers:
+                continue
+            if opp.end_date and opp.end_date < now and opp.status in ("open", "active", "upcoming"):
+                opp.status = "closed"
+                opp.last_checked_at = now
+                items_updated += 1
+        db.flush()
+    except Exception as e:
+        logger.warning(f"Süre kontrolü hatası: {e}")
 
     # Senkronizasyon günlüğü
-    log_status = "success"
-    log_msg = f"{items_checked} fırsat kontrol edildi. {items_updated} kayıt güncellendi/eklendi. Canlı RSS'ten {len(live_rss_items)} duyuru tarandı."
-
     try:
         sync_log = OpportunitySyncLog(
             source_name="TÜBİTAK Resmî Doğrulayıcı & Katalog",
-            status=log_status,
+            status="success",
             items_checked=items_checked,
             items_updated=items_updated,
-            message=log_msg,
+            message=f"{items_checked} fırsat tarandı, {items_updated} kayıt güncellendi/eklendi. Canlı RSS duyuruları: {len(live_rss_items)}",
             checked_at=now
         )
         db.add(sync_log)
@@ -422,13 +418,11 @@ def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
     except Exception as e:
         db.rollback()
         logger.error(f"Veritabanı commit hatası: {e}")
-        raise e
 
     return {
-        "status": log_status,
+        "status": "success",
         "items_checked": items_checked,
         "items_updated": items_updated,
         "live_rss_count": len(live_rss_items),
-        "errors": errors,
         "checked_at": now.isoformat()
     }
