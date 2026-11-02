@@ -603,9 +603,14 @@ def seed_database():
         print(f"{len(SDU_CENG_COURSES)} adet SDU Bilgisayar Muhendisligi dersi basariyla yuklendi.")
 
         # 4. Resmi Bilimsel Fırsatlar (TÜBİTAK 2209, TEKNOFEST vb.)
-        print("Resmi bilimsel firsatlar dogrulaniyor...")
-        from app.services.opportunity_verifier import verify_and_sync_opportunities
-        verify_and_sync_opportunities(db)
+        try:
+            print("Resmi bilimsel firsatlar dogrulaniyor...")
+            from app.services.opportunity_verifier import verify_and_sync_opportunities
+            sync_res = verify_and_sync_opportunities(db)
+            print(f"Bilimsel firsatlar senkronize edildi: {sync_res.get('items_updated', 0)} eklendi/guncellendi.")
+        except Exception as e:
+            print(f"Firsatlar senkronizasyon uyarisi: {e}")
+            db.rollback()
 
         # 5. Akademik Proje Rehberleri (Tohum Kılavuzlar)
         print("Akademik proje rehberleri senkronize ediliyor...")
