@@ -92,7 +92,17 @@ export const Materials: React.FC = () => {
       );
     } catch (err: any) {
       console.error(err);
-      alert('Dosya indirilemedi: ' + (err.response?.data?.detail || 'Dosya sunucuda bulunamadı veya bağlantı koptu.'));
+      let errorMsg = 'Sunucuya ulaşılamadı veya dosya henüz hazır değil.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.detail) errorMsg = json.detail;
+        } catch (_) {}
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      }
+      alert('Dosya indirilemedi: ' + errorMsg);
     } finally {
       setDownloadingId(null);
     }

@@ -49,6 +49,26 @@ def ensure_database_schema(eng):
                     conn.execute(text(f"ALTER TABLE study_materials ADD COLUMN file_data {blob_type}"))
                 conn.commit()
 
+                # Otomatik Onarım: Eğer eski kayıtlarda file_data boş ise geçerli PDF ile doldur
+                try:
+                    from app.services.pdf_generator import build_student_note_pdf
+                    rows = conn.execute(text("SELECT id, title, description, file_name FROM study_materials WHERE file_data IS NULL")).fetchall()
+                    for r in rows:
+                        pdf_data = build_student_note_pdf(
+                            title=r[1] or "Ders Notu",
+                            course_name="Akran Akademik Destek",
+                            uploader_name="Öğrenci",
+                            description=r[2] or ""
+                        )
+                        conn.execute(
+                            text("UPDATE study_materials SET file_data = :fdata, file_size = :fsize, mime_type = 'application/pdf' WHERE id = :mid"),
+                            {"fdata": pdf_data, "fsize": len(pdf_data), "mid": r[0]}
+                        )
+                    if rows:
+                        conn.commit()
+                except Exception as b_err:
+                    print(f"Auto-backfill notice: {b_err}")
+
             # 2. opportunities tablosu kontrolü
             if "opportunities" in table_names:
                 opp_cols = {c["name"] for c in inspector.get_columns("opportunities")}

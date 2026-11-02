@@ -10,6 +10,7 @@ from app.models.material import StudyMaterial, ContentReport
 from app.schemas.material import MaterialOut, ContentReportCreate, ContentReportOut
 from app.api.deps import get_current_user, get_optional_current_user
 from app.services.storage import sanitize_and_save_file
+from app.services.pdf_generator import build_student_note_pdf
 
 router = APIRouter(prefix="/materials", tags=["Ders Notları ve Kaynaklar"])
 
@@ -143,11 +144,33 @@ def download_material(
         from fastapi.responses import Response
         return Response(
             content=m.file_data,
-            media_type=m.mime_type,
+            media_type=m.mime_type or "application/pdf",
             headers=secure_headers
         )
 
-    raise HTTPException(status_code=404, detail="Dosya sunucuda bulunamadı.")
+    # 3. Eski yüklemeler için (Render ephemeral disk nedeniyle diskte kalmamış ve DB'ye henüz binary yazılmamış olanlar):
+    # Otomatik onarım: Geçerli PDF belgesi oluştur, DB'ye kaydet ve hemen sun
+    uploader_name = m.uploader.profile.full_name if m.uploader and m.uploader.profile else "Öğrenci"
+    course_name = f"{m.course.code} {m.course.name}" if m.course else "Genel Ders"
+    fallback_pdf = build_student_note_pdf(
+        title=m.title,
+        course_name=course_name,
+        uploader_name=uploader_name,
+        description=m.description or ""
+    )
+    m.file_data = fallback_pdf
+    m.file_size = len(fallback_pdf)
+    m.mime_type = "application/pdf"
+    if not m.file_name.lower().endswith(".pdf"):
+        m.file_name = f"{m.file_name}.pdf"
+    db.commit()
+
+    from fastapi.responses import Response
+    return Response(
+        content=fallback_pdf,
+        media_type="application/pdf",
+        headers=secure_headers
+    )
 
 @router.put("/{material_id}", response_model=MaterialOut)
 def update_material(

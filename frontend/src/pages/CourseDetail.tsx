@@ -39,7 +39,17 @@ export const CourseDetail: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert('Dosya indirilemedi: ' + (err.response?.data?.detail || 'Dosya bulunamadı.'));
+      let errorMsg = 'Dosya sunucuda bulunamadı veya bağlantı koptu.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.detail) errorMsg = json.detail;
+        } catch (_) {}
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      }
+      alert('Dosya indirilemedi: ' + errorMsg);
     } finally {
       setDownloadingId(null);
     }
