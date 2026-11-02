@@ -1,0 +1,398 @@
+import logging
+import urllib.request
+import ssl
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+from app.models.opportunity import Opportunity, OpportunitySyncLog
+
+logger = logging.getLogger("akran.opportunity_verifier")
+
+# Official verified initial opportunities catalogue
+VERIFIED_OFFICIAL_OPPORTUNITIES = [
+    {
+        "source_identifier": "tubitak_2209_a_2026",
+        "title": "TÜBİTAK 2209-A Üniversite Öğrencileri Araştırma Projeleri Destekleme Programı",
+        "organization": "TÜBİTAK BİDEB",
+        "category": "TÜBİTAK",
+        "summary": "Ön lisans ve lisans öğrencilerinin üniversitelerde akademik danışmanları rehberliğinde yürütecekleri araştırma projelerine sarf malzeme, kırtasiye ve hizmet alımı desteği sağlanır.",
+        "fields": "Mühendislik, Temel Bilimler, Sağlık Bilimleri, Sosyal ve Beşeri Bilimler",
+        "target_audience": "Ön Lisans ve Lisans Öğrencileri",
+        "application_type": "both",
+        "requirements": "Türkiye'de öğrenim gören ön lisans veya lisans öğrencisi olmak. En fazla 1 akademik danışman ve en fazla 4 öğrenci ile başvuru yapılabilir.",
+        "start_date": datetime(2026, 10, 7, 0, 0),
+        "end_date": datetime(2026, 11, 11, 17, 30),
+        "published_date": datetime(2026, 10, 9, 0, 0),
+        "prize_support": "Proje Başına Doğrudan Araştırma Hibesi",
+        "official_url": "https://tubitak.gov.tr/tr/duyuru/2209-universite-ogrencileri-arastirma-projeleri-destekleme-programi-ve-2209-b-universite-ogrencileri-sanayiye-yonelik-arastirma-projeleri-destegi-programi-2026-yili-cagrilari-acildi",
+        "application_url": "https://tybs.tubitak.gov.tr",
+        "status": "open",
+        "is_sample": False,
+    },
+    {
+        "source_identifier": "tubitak_2209_b_2026",
+        "title": "TÜBİTAK 2209-B Üniversite Öğrencileri Sanayiye Yönelik Araştırma Projeleri Desteği",
+        "organization": "TÜBİTAK BİDEB",
+        "category": "TÜBİTAK",
+        "summary": "Ön lisans ve lisans öğrencilerinin sanayinin bir problemine çözüm geliştiren Ar-Ge ve inovasyon odaklı projelerine sanayi ve akademik danışman ortaklığıyla finansal hibe verilir.",
+        "fields": "Sanayi Odaklı Ar-Ge, Bilgisayar, Makine, Elektrik-Elektronik, Kimya",
+        "target_audience": "Ön Lisans ve Lisans Öğrencileri, Sanayi Kuruluşları",
+        "application_type": "both",
+        "requirements": "Sanayi kuruluşundan bir sanayi danışmanı ve üniversiteden bir akademik danışman onaylı proje önerisi sunulmalıdır.",
+        "start_date": datetime(2026, 10, 7, 0, 0),
+        "end_date": datetime(2026, 11, 11, 17, 30),
+        "published_date": datetime(2026, 10, 9, 0, 0),
+        "prize_support": "Sanayi Odaklı Ar-Ge Hibe Desteği",
+        "official_url": "https://tubitak.gov.tr/tr/duyuru/2209-universite-ogrencileri-arastirma-projeleri-destekleme-programi-ve-2209-b-universite-ogrencileri-sanayiye-yonelik-arastirma-projeleri-destegi-programi-2026-yili-cagrilari-acildi",
+        "application_url": "https://tybs.tubitak.gov.tr",
+        "status": "open",
+        "is_sample": False,
+    },
+    {
+        "source_identifier": "teknofest_univ_arastirma_2026",
+        "title": "TEKNOFEST 2026 Üniversite Öğrencileri Araştırma Proje Yarışmaları",
+        "organization": "T3 Vakfı & Sanayi ve Teknoloji Bakanlığı",
+        "category": "TEKNOFEST",
+        "summary": "Milli Teknoloji Hamlesi vizyonuyla akıllı ulaşım, yapay zekâ, savunma ve biyoteknoloji alanlarında üniversite takımlarının yarıştığı teknoloji festivali.",
+        "fields": "Yapay Zekâ, Havacılık, Siber Güvenlik, Otonom Sistemler, Robotik",
+        "target_audience": "Ön Lisans, Lisans ve Lisansüstü Öğrencileri",
+        "application_type": "team",
+        "requirements": "Türkiye ve yurt dışında öğrenim gören üniversite öğrencileri takımlar halinde katılabilir.",
+        "start_date": datetime(2026, 11, 1, 0, 0),
+        "end_date": datetime(2026, 12, 31, 23, 59),
+        "published_date": datetime(2026, 10, 1, 0, 0),
+        "prize_support": "Dereceye Giren Takımlara Toplam 1.000.000 TL + Ödül ve Destek",
+        "official_url": "https://teknofest.org/tr/yarismalar/universite-ogrencileri-arastirma-proje-yarismalari/",
+        "application_url": "https://www.t3kys.com",
+        "status": "upcoming",
+        "is_sample": False,
+    },
+    {
+        "source_identifier": "tubitak_2242_2026",
+        "title": "TÜBİTAK 2242 Üniversite Öğrencileri Araştırma Proje Yarışmaları",
+        "organization": "TÜBİTAK BİDEB",
+        "category": "Yarışma",
+        "summary": "Ön lisans ve lisans düzeyinde öğrencileri araştırma yapmaya teşvik eden, 9 ana kategoride düzenlenen proje yarışması.",
+        "fields": "Bilgi ve İletişim Teknolojileri, Akıllı Şehirler, Enerji, Sağlık, Savunma",
+        "target_audience": "Ön Lisans ve Lisans Öğrencileri",
+        "application_type": "both",
+        "requirements": "Ön lisans veya lisans öğrencisi olmak, en fazla 5 kişilik takımlar oluşturabilmek.",
+        "start_date": datetime(2026, 1, 15, 0, 0),
+        "end_date": datetime(2026, 4, 6, 17, 30),
+        "published_date": datetime(2026, 1, 10, 0, 0),
+        "prize_support": "Kategori Birincilik, İkincilik ve Üçüncülük Ödülleri",
+        "official_url": "https://tubitak.gov.tr/tr/yarismalar/2242-universite-ogrencileri-arastirma-proje-yarismalari",
+        "application_url": "https://ebideb.tubitak.gov.tr",
+        "status": "closed",
+        "is_sample": False,
+    },
+    {
+        "source_identifier": "tubitak_2210_burs_2026",
+        "title": "TÜBİTAK 2210 Yurt İçi Yüksek Lisans Burs Programı",
+        "organization": "TÜBİTAK BİDEB",
+        "category": "Burs",
+        "summary": "Tezli yüksek lisans öğrenimi gören başarılı öğrencilere aylık burs desteği sağlanarak bilim insanı yetiştirilmesi amaçlanmaktadır.",
+        "fields": "Doğa Bilimleri, Mühendislik ve Teknoloji, Tıbbi Bilimler, Sosyal Bilimler",
+        "target_audience": "Tezli Yüksek Lisans Öğrencileri",
+        "application_type": "individual",
+        "requirements": "İlgili ALES ve lisans mezuniyet not ortalaması kriterlerini sağlamak.",
+        "start_date": datetime(2026, 9, 1, 0, 0),
+        "end_date": datetime(2026, 11, 20, 17, 30),
+        "published_date": datetime(2026, 8, 25, 0, 0),
+        "prize_support": "Aylık Düzenli TÜBİTAK Bursu",
+        "official_url": "https://tubitak.gov.tr/tr/burslar/lisansustu/egitim-burs-programlari/2210-yurt-ici-yuksek-lisans-burs-programlari",
+        "application_url": "https://ebideb.tubitak.gov.tr",
+        "status": "open",
+        "is_sample": False,
+    },
+    {
+        "source_identifier": "btk_siber_vatan_2026",
+        "title": "BTK Akademi & Siber Vatan Hackathon ve Uzmanlık Programı",
+        "organization": "BTK Akademi & Kalkınma Ajansları",
+        "category": "Hackathon",
+        "summary": "Üniversite öğrencilerine yönelik siber güvenlik, tersine mühendislik ve web güvenliği odaklı CTF yarışması ve ileri seviye eğitim kampı.",
+        "fields": "Siber Güvenlik, Ağ Güvenliği, Kriptoloji, CTF",
+        "target_audience": "Üniversite Öğrencileri",
+        "application_type": "individual",
+        "requirements": "Temel ağ ve işletim sistemi bilgisine sahip olmak, çevrim içi eleme sınavında başarılı olmak.",
+        "start_date": datetime(2026, 10, 15, 0, 0),
+        "end_date": datetime(2026, 11, 30, 23, 59),
+        "published_date": datetime(2026, 10, 10, 0, 0),
+        "prize_support": "Teknoloji Ödülleri ve Siber Güvenlik Staj İmkânı",
+        "official_url": "https://www.btkakademi.gov.tr",
+        "application_url": "https://www.btkakademi.gov.tr",
+        "status": "open",
+        "is_sample": False,
+    }
+]
+
+def check_url_health(url: str, timeout: int = 8) -> bool:
+    """Verifies that an external URL is reachable with HTTP 200/300 status."""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AKRAN-Academic-Verifier/1.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as response:
+            return response.status in (200, 301, 302, 307, 308)
+    except Exception as e:
+        logger.warning(f"URL doğrulama başarısız: {url} -> {e}")
+        return False
+
+def fetch_live_tubitak_rss() -> List[Dict[str, Any]]:
+    """
+    TÜBİTAK resmî RSS beslemesinden (https://www.tubitak.gov.tr/rss.xml)
+    güncel çağrı ve bilimsel duyuruları çeker.
+    """
+    rss_url = "https://www.tubitak.gov.tr/rss.xml"
+    discovered: List[Dict[str, Any]] = []
+    
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        req = urllib.request.Request(
+            rss_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AKRAN-Academic-Crawler/1.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=12, context=ctx) as response:
+            raw_xml = response.read()
+            xml_text = raw_xml.decode("utf-8", errors="replace")
+            import xml.etree.ElementTree as ET
+            from email.utils import parsedate_to_datetime
+            import re
+
+            root = ET.fromstring(xml_text.encode("utf-8"))
+            items = root.findall(".//item")
+            logger.info(f"TÜBİTAK RSS beslemesinden {len(items)} duyuru okundu.")
+
+            for item in items:
+                title = item.find("title").text if item.find("title") is not None else ""
+                link = item.find("link").text if item.find("link") is not None else ""
+                description = item.find("description").text if item.find("description") is not None else ""
+                pub_date_str = item.find("pubDate").text if item.find("pubDate") is not None else ""
+
+                if not title or not link:
+                    continue
+
+                # HTML etiketlerini ve gereksiz boşlukları temizle
+                clean_desc = re.sub(r"<[^>]+>", " ", description)
+                clean_desc = re.sub(r"\s+", " ", clean_desc).strip()
+                if len(clean_desc) > 300:
+                    clean_desc = clean_desc[:297] + "..."
+
+                # Tarih çözümleme
+                published_dt = None
+                if pub_date_str:
+                    try:
+                        published_dt = parsedate_to_datetime(pub_date_str).replace(tzinfo=None)
+                    except Exception:
+                        published_dt = None
+
+                # Kategori tespiti
+                title_lower = title.lower()
+                desc_lower = clean_desc.lower()
+                category = "TÜBİTAK"
+                if any(w in title_lower or w in desc_lower for w in ["burs", "bursu", "bideb"]):
+                    category = "Burs"
+                elif any(w in title_lower or w in desc_lower for w in ["yarışma", "yarismasi"]):
+                    category = "Yarışma"
+                elif any(w in title_lower or w in desc_lower for w in ["hackathon", "ideathon", "maraton"]):
+                    category = "Hackathon"
+                elif any(w in title_lower or w in desc_lower for w in ["okul", "okulu", "eğitim", "staj"]):
+                    category = "Eğitim / Program"
+
+                # Slug çıkarımı (benzersiz anahtar için)
+                slug_match = re.search(r"/(?:duyuru|haber)/([^/?#]+)", link)
+                slug = slug_match.group(1) if slug_match else re.sub(r"[^a-zA-Z0-9_]", "_", title)[:40]
+                source_id = f"tubitak_rss_{slug}"
+
+                # Doğrudan başvuru portalı tahmini
+                app_url = None
+                if "tybs" in desc_lower or "2209" in title_lower:
+                    app_url = "https://tybs.tubitak.gov.tr"
+                elif "ebideb" in desc_lower or "bideb" in desc_lower or category == "Burs":
+                    app_url = "https://ebideb.tubitak.gov.tr"
+
+                discovered.append({
+                    "source_identifier": source_id,
+                    "title": title,
+                    "organization": "TÜBİTAK",
+                    "category": category,
+                    "summary": clean_desc or f"{title} resmî TÜBİTAK çağrısı.",
+                    "fields": "Fen Bilimleri, Mühendislik, Sağlık, Sosyal ve Beşeri Bilimler",
+                    "target_audience": "Öğrenciler, Araştırmacılar ve Akademisyenler",
+                    "application_type": "both",
+                    "requirements": "Resmî çağrı metninde belirtilen başvuru şartları geçerlidir.",
+                    "published_date": published_dt,
+                    "start_date": published_dt,
+                    "end_date": None,  # Bitiş tarihi belirtilmediğinde varsayımla doldurulmaz
+                    "official_url": link,
+                    "application_url": app_url,
+                    "status": "open",
+                    "is_sample": False
+                })
+    except Exception as e:
+        logger.error(f"TÜBİTAK canlı RSS çekme hatası: {e}")
+
+    return discovered
+
+def verify_and_sync_opportunities(db: Session) -> Dict[str, Any]:
+    """
+    1. Hem resmî çekirdek kataloğu (2209-A, 2209-B, TEKNOFEST vb.) hem de canlı TÜBİTAK RSS beslemesini senkronize eder.
+    2. Tekil anahtar (source_identifier) ve official_url kontrolüyle yinelenen kayıtları engeller.
+    3. Son başvuru tarihi geçmiş olanları otomatik kapatır (status = 'closed').
+    4. Resmî URL'leri test eder; ulaşılamayanları 'pending_verification' olarak işaretler.
+    5. Tüm adımları opportunity_sync_logs tablosuna kaydeder.
+    """
+    now = datetime.utcnow()
+    items_checked = 0
+    items_updated = 0
+    errors: List[str] = []
+
+    # Canlı TÜBİTAK RSS verilerini çek
+    live_rss_items = fetch_live_tubitak_rss()
+
+    # Birleşik liste: Çekirdek katalog + Canlı RSS duyuruları
+    all_targets: List[Dict[str, Any]] = list(VERIFIED_OFFICIAL_OPPORTUNITIES)
+
+    # RSS'ten gelenleri ekle (eğer çekirdek katalogda zaten varsa atla)
+    existing_catalog_urls = {item["official_url"] for item in VERIFIED_OFFICIAL_OPPORTUNITIES}
+    for live_item in live_rss_items:
+        if live_item["official_url"] not in existing_catalog_urls:
+            all_targets.append(live_item)
+
+    processed_identifiers = set()
+
+    for data in all_targets:
+        items_checked += 1
+        ident = data["source_identifier"]
+        processed_identifiers.add(ident)
+
+        # Yinelenen kayıt kontrolü:
+        # 1. Öncelikle kesin benzersiz source_identifier üzerinden aranır.
+        opp = db.query(Opportunity).filter(Opportunity.source_identifier == ident).first()
+
+        # 2. Eğer bulunamadıysa ve gelen kayıt RSS'ten ise, aynı official_url'e sahip mevcut ilan aranır
+        if not opp and ident.startswith("tubitak_rss_"):
+            opp = db.query(Opportunity).filter(Opportunity.official_url == data["official_url"]).first()
+
+        # URL sağlık kontrolü
+        is_url_ok = check_url_health(data["official_url"])
+        status_val = data.get("status", "open")
+
+        # Son başvuru tarihi kontrolü (tarih geçmişse otomatik kapat)
+        if data.get("end_date") and data["end_date"] < now:
+            status_val = "closed"
+        elif not is_url_ok:
+            status_val = "pending_verification"
+            errors.append(f"{data['title'][:35]} için resmî bağlantı doğrulanamadı.")
+
+        if not opp:
+            opp = Opportunity(
+                source_identifier=ident,
+                title=data["title"],
+                organization=data["organization"],
+                summary=data.get("summary"),
+                category=data["category"],
+                fields=data.get("fields"),
+                target_audience=data.get("target_audience"),
+                application_type=data.get("application_type", "both"),
+                requirements=data.get("requirements"),
+                start_date=data.get("start_date"),
+                end_date=data.get("end_date"),
+                published_date=data.get("published_date"),
+                prize_support=data.get("prize_support"),
+                official_url=data["official_url"],
+                application_url=data.get("application_url"),
+                status=status_val,
+                last_verified_date=now if is_url_ok else None,
+                last_checked_at=now,
+                is_sample=False,
+            )
+            db.add(opp)
+            items_updated += 1
+        else:
+            # Mevcut kayıt güncellemesi: Kullanıcı favorilerini bozmadan güvenli güncelleme
+            opp.title = data["title"]
+            opp.organization = data["organization"]
+            opp.summary = data.get("summary")
+            opp.category = data["category"]
+            if data.get("fields"):
+                opp.fields = data["fields"]
+            if data.get("target_audience"):
+                opp.target_audience = data["target_audience"]
+            if data.get("application_type"):
+                opp.application_type = data["application_type"]
+            if data.get("requirements"):
+                opp.requirements = data["requirements"]
+            if data.get("start_date"):
+                opp.start_date = data["start_date"]
+            if data.get("end_date"):
+                opp.end_date = data["end_date"]
+            if data.get("prize_support"):
+                opp.prize_support = data["prize_support"]
+            opp.official_url = data["official_url"]
+            if data.get("application_url"):
+                opp.application_url = data["application_url"]
+            opp.status = status_val
+            opp.last_checked_at = now
+            if is_url_ok:
+                opp.last_verified_date = now
+            items_updated += 1
+
+    # 2. Veritabanındaki diğer ilanların süre kontrolü
+    all_opps = db.query(Opportunity).all()
+    for opp in all_opps:
+        if opp.source_identifier in processed_identifiers:
+            continue
+        items_checked += 1
+        # Süresi dolmuş olanları kapat
+        if opp.end_date and opp.end_date < now and opp.status in ("open", "active", "upcoming"):
+            opp.status = "closed"
+            opp.last_checked_at = now
+            items_updated += 1
+        # Bitiş tarihi olmayan ve uzun süredir doğrulanmamış ilanlar
+        elif not opp.end_date and opp.status in ("open", "active"):
+            if opp.last_verified_date and (now - opp.last_verified_date).days > 30:
+                opp.status = "pending_verification"
+                items_updated += 1
+
+    # 3. Senkronizasyon günlüğü oluştur
+    log_status = "error" if len(errors) > 2 else ("warning" if errors else "success")
+    log_msg = f"{items_checked} fırsat kontrol edildi. {items_updated} kayıt güncellendi/eklendi. Canlı RSS'ten {len(live_rss_items)} duyuru tarandı."
+    if errors:
+        log_msg += " Uyarılar: " + "; ".join(errors[:3])
+
+    sync_log = OpportunitySyncLog(
+        source_name="TÜBİTAK Resmî RSS Beslemesi & Doğrulayıcı",
+        status=log_status,
+        items_checked=items_checked,
+        items_updated=items_updated,
+        message=log_msg,
+        checked_at=now
+    )
+    db.add(sync_log)
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Veritabanı commit hatası: {e}")
+        raise e
+
+    return {
+        "status": log_status,
+        "items_checked": items_checked,
+        "items_updated": items_updated,
+        "live_rss_count": len(live_rss_items),
+        "errors": errors,
+        "checked_at": now.isoformat()
+    }
