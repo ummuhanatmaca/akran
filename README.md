@@ -46,16 +46,14 @@ Sistemde destek arayan bir öğrenci için en alakalı ders anlatıcılarını s
 
 ---
 
-## 4. Kullanıcı Rolleri ve Demo Giriş Bilgileri
+## 4. Kullanıcı Rolleri ve Yetkilendirme Modeli
 
-Sistem reel verilerin kaydedilmesine hazır hale getirilmiş, SDÜ Bilgisayar Mühendisliği lisans müfredatının 32 dersi ve örnek ders notları yüklenmiştir:
+Platformda Rol Tabanlı Erişim Denetimi (RBAC) uygulanmaktadır:
 
-| Rol | E-Posta | Parola | Tanım / Yetkinlik |
-| :--- | :--- | :--- | :--- |
-| **Yönetici (Admin)** | `admin@akran.edu.tr` | `AdminAkran2026!` | İstatistikler, kullanıcı askıya alma, fırsat ve moderasyon yönetimi |
-| **Öğrenci (Kayıtlı)** | `l2211012032@ogr.sdu.edu.tr` | *(Kullanıcı parolası)* | SDÜ Bilgisayar Mühendisliği Öğrenci Hesabı |
-
-*(Giriş ekranında yönetici paneline tek tıkla erişebileceğiniz **"Yönetici Hızlı Girişi"** butonu mevcuttur; yeni öğrenciler ise **"Kayıt Ol"** ekranından anında hesap oluşturabilir.)*
+| Rol | Tanım / Yetki Alanı | Hesap Oluşturma / Erişim |
+| :--- | :--- | :--- |
+| **Yönetici (Admin)** | Platform istatistikleri, kullanıcı/içerik moderasyonu, dosya güvenlik denetimi (SHA-256), fırsat senkronizasyonu | Ortam değişkenleri (`INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`) üzerinden güvenli biçimde tanımlanır |
+| **Öğrenci** | Akran ders desteği alma/verme, ders notu paylaşımı, çalışma gruplarına katılım, bilimsel proje takımı kurma | `/register` ("Kayıt Ol") ekranından anında kurumsal/öğrenci e-postası ile oluşturulur |
 
 ---
 
