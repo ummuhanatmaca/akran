@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Canlı ortamda doğrudan Render backend'ine bağlanır
+const DEFAULT_API_URL = import.meta.env.PROD
+  ? 'https://akran-backend.onrender.com/api'
+  : '/api';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

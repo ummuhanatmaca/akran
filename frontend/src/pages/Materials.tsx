@@ -181,14 +181,26 @@ export const Materials: React.FC = () => {
               className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-slate-300 transition-colors flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                    {m.course?.code}
-                  </span>
-                  <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                <div className="flex items-start justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+                      {m.course?.code}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-800 line-clamp-1" title={m.course?.name}>
+                      {m.course?.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">
                     {m.file_extension.replace('.', '')}
                   </span>
                 </div>
+                {m.topic?.name && (
+                  <div className="mb-2">
+                    <span className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded inline-block">
+                      Konu: {m.topic.name}
+                    </span>
+                  </div>
+                )}
 
                 <h3 className="font-semibold text-slate-900 text-sm mb-1 line-clamp-1">{m.title}</h3>
                 <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4">
