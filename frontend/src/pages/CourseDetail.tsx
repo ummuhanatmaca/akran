@@ -21,6 +21,30 @@ export const CourseDetail: React.FC = () => {
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
+  const handleDownload = async (m: StudyMaterial) => {
+    setDownloadingId(m.id);
+    try {
+      const res = await apiClient.get(`/materials/${m.id}/download`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: m.mime_type || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', m.file_name || 'ders-notu.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Dosya indirilemedi: ' + (err.response?.data?.detail || 'Dosya bulunamadı.'));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
@@ -203,15 +227,18 @@ export const CourseDetail: React.FC = () => {
                       </p>
                     </div>
 
-                    <a
-                      href={`/api/materials/${m.id}/download`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 text-slate-500 hover:text-sky-600 rounded-md hover:bg-slate-50 transition-colors"
+                    <button
+                      onClick={() => handleDownload(m)}
+                      disabled={downloadingId === m.id}
+                      className="p-1.5 text-slate-500 hover:text-sky-600 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
                       title="İndir"
                     >
-                      <Download className="w-4 h-4" />
-                    </a>
+                      {downloadingId === m.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                 ))}
               </div>

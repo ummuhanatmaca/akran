@@ -38,6 +38,7 @@ def upload_material(
         description=description.strip() if description else None,
         file_path=stored["file_path"],
         file_name=stored["file_name"],
+        file_data=stored.get("file_data"),
         file_size=stored["file_size"],
         mime_type=stored["mime_type"],
         file_extension=stored["file_extension"],
@@ -108,25 +109,45 @@ def download_material(
                 detail="Bu dosya güvenlik veya telif incelemesi altında olduğu için erişime kapatılmıştır."
             )
 
-    if not os.path.exists(m.file_path):
-        raise HTTPException(status_code=404, detail="Dosya sunucuda bulunamadı.")
-
     # Increment download count
     m.download_count += 1
     db.commit()
 
+    import urllib.parse
+    encoded_filename = urllib.parse.quote(m.file_name)
     secure_headers = {
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "default-src 'none'",
-        "X-Frame-Options": "DENY"
+        "X-Frame-Options": "DENY",
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
     }
 
-    return FileResponse(
-        path=m.file_path,
-        media_type=m.mime_type,
-        filename=m.file_name,
-        headers=secure_headers
-    )
+    # 1. Dosya diskte mevcutsa doğrudan diskten sun
+    if m.file_path and os.path.exists(m.file_path):
+        return FileResponse(
+            path=m.file_path,
+            media_type=m.mime_type,
+            filename=m.file_name,
+            headers=secure_headers
+        )
+
+    # 2. Disk dosyası silinmişse (Render ephemeral restart) veritabanındaki kalıcı binary veriden sun
+    if m.file_data:
+        try:
+            os.makedirs(os.path.dirname(m.file_path), exist_ok=True)
+            with open(m.file_path, "wb") as f:
+                f.write(m.file_data)
+        except Exception:
+            pass
+
+        from fastapi.responses import Response
+        return Response(
+            content=m.file_data,
+            media_type=m.mime_type,
+            headers=secure_headers
+        )
+
+    raise HTTPException(status_code=404, detail="Dosya sunucuda bulunamadı.")
 
 @router.put("/{material_id}", response_model=MaterialOut)
 def update_material(
@@ -177,6 +198,7 @@ def update_material(
         stored = sanitize_and_save_file(file)
         m.file_path = stored["file_path"]
         m.file_name = stored["file_name"]
+        m.file_data = stored.get("file_data")
         m.file_size = stored["file_size"]
         m.mime_type = stored["mime_type"]
         m.file_extension = stored["file_extension"]

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -14,6 +14,7 @@ class StudyMaterial(Base):
     description = Column(Text, nullable=True)
     file_path = Column(String(500), nullable=False)
     file_name = Column(String(255), nullable=False)  # original uploaded name
+    file_data = Column(LargeBinary, nullable=True)   # Kalıcı veritabanı depolaması (Render ephemeral disk koruması)
     file_size = Column(Integer, nullable=False)      # in bytes
     mime_type = Column(String(100), nullable=False)
     file_extension = Column(String(20), nullable=False)

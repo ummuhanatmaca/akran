@@ -85,6 +85,7 @@ def sanitize_and_save_file(file: UploadFile) -> dict:
     return {
         "file_path": destination_path,
         "file_name": filename,
+        "file_data": contents,
         "unique_filename": unique_filename,
         "file_size": file_size,
         "mime_type": verified_mime,

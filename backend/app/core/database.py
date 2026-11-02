@@ -32,6 +32,7 @@ def ensure_database_schema(eng):
     try:
         inspector = inspect(eng)
         table_names = inspector.get_table_names()
+        dialect = eng.dialect.name
 
         with eng.connect() as conn:
             # 1. study_materials tablosu kontrolü
@@ -43,6 +44,9 @@ def ensure_database_schema(eng):
                     conn.execute(text("ALTER TABLE study_materials ADD COLUMN scan_status VARCHAR(30) DEFAULT 'clean' NOT NULL"))
                 if "security_note" not in mat_cols:
                     conn.execute(text("ALTER TABLE study_materials ADD COLUMN security_note VARCHAR(255)"))
+                if "file_data" not in mat_cols:
+                    blob_type = "BYTEA" if dialect == "postgresql" else "BLOB"
+                    conn.execute(text(f"ALTER TABLE study_materials ADD COLUMN file_data {blob_type}"))
                 conn.commit()
 
             # 2. opportunities tablosu kontrolü

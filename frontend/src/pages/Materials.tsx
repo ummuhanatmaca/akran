@@ -69,14 +69,32 @@ export const Materials: React.FC = () => {
     fetchMaterials();
   }, [selectedCourseId, extension]);
 
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
+
   const handleDownload = async (material: StudyMaterial) => {
+    setDownloadingId(material.id);
     try {
-      window.open(`/api/materials/${material.id}/download`, '_blank');
+      const res = await apiClient.get(`/materials/${material.id}/download`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: material.mime_type || 'application/octet-stream' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', material.file_name || 'ders-notu.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
       setMaterials(prev =>
         prev.map(m => m.id === material.id ? { ...m, download_count: m.download_count + 1 } : m)
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      alert('Dosya indirilemedi: ' + (err.response?.data?.detail || 'Dosya sunucuda bulunamadı veya bağlantı koptu.'));
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -362,10 +380,20 @@ export const Materials: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => handleDownload(m)}
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    disabled={downloadingId === m.id}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white font-medium rounded-lg text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    İndir
+                    {downloadingId === m.id ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        İndiriliyor...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        İndir
+                      </>
+                    )}
                   </button>
                 )}
               </div>
