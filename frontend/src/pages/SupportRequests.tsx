@@ -81,7 +81,7 @@ export const SupportRequests: React.FC = () => {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Bana Gelen Talepler
+          Bana Gelen & Açık Destek Havuzu
           {received.filter((r) => r.status === 'pending').length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">
               {received.filter((r) => r.status === 'pending').length}
@@ -111,12 +111,12 @@ export const SupportRequests: React.FC = () => {
         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-200 p-8 space-y-2">
           <Compass className="w-8 h-8 text-slate-400 mx-auto" />
           <p className="text-sm font-semibold text-slate-700">
-            {tab === 'received' ? 'Henüz size gelen bir ders desteği talebi yok.' : 'Henüz bir talep göndermediniz.'}
+            {tab === 'received' ? 'Henüz size gelen veya açık havuzda bekleyen bir ders desteği talebi yok.' : 'Henüz bir talep göndermediniz.'}
           </p>
           <p className="text-xs text-slate-500">
             {tab === 'received'
-              ? 'Profilinizden ders anlatabileceğiniz konuları belirterek talepler almaya başlayabilirsiniz.'
-              : 'Zorlandığınız dersler için anlatıcıları keşfedin ve talep gönderin.'}
+              ? 'Diğer öğrencilerin açtığı talepler burada listelenir. Siz de akranlarınıza destek vererek oturum planlayabilirsiniz.'
+              : 'Zorlandığınız dersler için anlatıcıları keşfedin veya doğrudan genel destek talebi oluşturun.'}
           </p>
         </div>
       ) : (
@@ -148,6 +148,11 @@ export const SupportRequests: React.FC = () => {
                     {req.status === 'rejected' && 'Reddedildi'}
                     {req.status === 'cancelled' && 'İptal Edildi'}
                   </span>
+                  {!req.helper_id && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200">
+                      Genel Destek Havuzu
+                    </span>
+                  )}
                 </div>
 
                 <p className="text-xs text-slate-600 leading-relaxed">

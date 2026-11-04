@@ -80,9 +80,13 @@ def get_received_requests(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Doğrudan kullanıcıya gönderilenler + Açık destek havuzundaki tüm bekleyen talepler (kullanıcının kendi talebi hariç)
     requests = (
         db.query(SupportRequest)
-        .filter(SupportRequest.helper_id == current_user.id)
+        .filter(
+            (SupportRequest.helper_id == current_user.id) |
+            ((SupportRequest.helper_id.is_(None)) & (SupportRequest.requester_id != current_user.id) & (SupportRequest.status == "pending"))
+        )
         .order_by(SupportRequest.created_at.desc())
         .all()
     )
@@ -104,15 +108,20 @@ def update_request_status(
     # Authorization
     is_helper = req.helper_id == current_user.id
     is_requester = req.requester_id == current_user.id
+    is_open_pool = req.helper_id is None and req.requester_id != current_user.id
 
-    if not is_helper and not is_requester:
+    if not is_helper and not is_requester and not is_open_pool:
         raise HTTPException(status_code=403, detail="Bu talebi güncelleme yetkiniz yok.")
 
     if status_action == "accept":
-        if not is_helper:
-            raise HTTPException(status_code=403, detail="Yalnızca talebi alan kişi kabul edebilir.")
+        if not is_helper and not is_open_pool:
+            raise HTTPException(status_code=403, detail="Yalnızca doğrudan talebi alan veya açık havuzdaki akranlar kabul edebilir.")
         if req.status != "pending":
             raise HTTPException(status_code=400, detail="Yalnızca bekleyen talepler kabul edilebilir.")
+
+        # Açık havuz talebini kabul eden öğrenci akran eğitmen olarak atanır
+        if req.helper_id is None:
+            req.helper_id = current_user.id
 
         req.status = "accepted"
 
@@ -133,18 +142,18 @@ def update_request_status(
         db.add(session)
 
         # Notify requester
-        tutor_name = current_user.profile.full_name if current_user.profile else "Ders anlatıcısı"
+        tutor_name = current_user.profile.full_name if current_user.profile else "Akran Eğitmen"
         db.add(Notification(
             user_id=req.requester_id,
             title="Ders Talebiniz Kabul Edildi",
-            message=f"{tutor_name}, {req.topic_name} konulu destek talebinizi kabul etti. Oturum planlandı.",
+            message=f"{tutor_name}, {req.topic_name} konulu destek talebinizi üstlendi ve kabul etti. Canlı ders oturumu planlandı.",
             type="support_accepted",
             link="/sessions"
         ))
 
     elif status_action == "reject":
         if not is_helper:
-            raise HTTPException(status_code=403, detail="Yalnızca talebi alan kişi reddedebilir.")
+            raise HTTPException(status_code=403, detail="Yalnızca doğrudan size gelen talepleri reddedebilirsiniz.")
         req.status = "rejected"
         tutor_name = current_user.profile.full_name if current_user.profile else "Ders anlatıcısı"
         db.add(Notification(
@@ -251,7 +260,9 @@ def _format_support_request(req: SupportRequest, db: Session) -> SupportRequestO
     out.requester_name = req_user.profile.full_name if req_user and req_user.profile else "Anonim"
     if req.helper_id:
         help_user = db.query(User).filter(User.id == req.helper_id).first()
-        out.helper_name = help_user.profile.full_name if help_user and help_user.profile else "Anonim"
+        out.helper_name = help_user.profile.full_name if help_user and help_user.profile else "Akran Eğitmen"
+    else:
+        out.helper_name = "Tüm Akranlara Açık (Genel Havuz)"
     return out
 
 def _format_support_session(s: SupportSession, db: Session) -> SupportSessionOut:
