@@ -134,16 +134,17 @@ def download_material(
 
     # 2. Disk dosyası silinmişse (Render ephemeral restart) veritabanındaki kalıcı binary veriden sun
     if m.file_data:
+        raw_bytes = bytes(m.file_data)
         try:
             os.makedirs(os.path.dirname(m.file_path), exist_ok=True)
             with open(m.file_path, "wb") as f:
-                f.write(m.file_data)
+                f.write(raw_bytes)
         except Exception:
             pass
 
         from fastapi.responses import Response
         return Response(
-            content=m.file_data,
+            content=raw_bytes,
             media_type=m.mime_type or "application/pdf",
             headers=secure_headers
         )
