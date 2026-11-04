@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { StudyGroup, Course } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +18,7 @@ import {
 
 export const StudyGroups: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [groups, setGroups] = useState<StudyGroup[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -62,6 +64,10 @@ export const StudyGroups: React.FC = () => {
   }, [selectedCourseId]);
 
   const handleJoin = async (groupId: number) => {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: '/study-groups' } } });
+      return;
+    }
     try {
       await apiClient.post(`/study-groups/${groupId}/join`);
       await fetchGroups();
@@ -71,6 +77,10 @@ export const StudyGroups: React.FC = () => {
   };
 
   const handleLeave = async (groupId: number) => {
+    if (!user) {
+      navigate('/login', { state: { from: { pathname: '/study-groups' } } });
+      return;
+    }
     try {
       await apiClient.post(`/study-groups/${groupId}/leave`);
       await fetchGroups();
@@ -140,6 +150,25 @@ export const StudyGroups: React.FC = () => {
           </button>
         )}
       </div>
+
+      {/* Login Banner for non-authenticated users */}
+      {!user && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+            <p className="text-xs sm:text-sm text-amber-800 font-medium">
+              Çalışma gruplarına katılmak veya yeni grup oluşturmak için giriş yapmanız gerekmektedir.
+            </p>
+          </div>
+          <Link
+            to="/login"
+            state={{ from: { pathname: '/study-groups' } }}
+            className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-lg text-xs whitespace-nowrap shadow-xs transition-colors"
+          >
+            Giriş Yap
+          </Link>
+        </div>
+      )}
 
       {/* Filter by course */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -253,6 +282,14 @@ export const StudyGroups: React.FC = () => {
                     )
                   ) : group.current_members_count >= group.max_members ? (
                     <span className="text-xs font-medium text-slate-400">Kontenjan Dolu</span>
+                  ) : !user ? (
+                    <Link
+                      to="/login"
+                      state={{ from: { pathname: '/study-groups' } }}
+                      className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-medium rounded-lg text-xs flex items-center gap-1 shadow-xs transition-colors"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Giriş Yap & Katıl
+                    </Link>
                   ) : (
                     <button
                       onClick={() => handleJoin(group.id)}
