@@ -11,8 +11,16 @@ router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
+    # Sadece .edu.tr uzantılı üniversite e-posta adresleri kabul edilir
+    email_clean = request.email.lower().strip()
+    if not email_clean.endswith(".edu.tr"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Yalnızca üniversite e-posta adresleri (.edu.tr) ile kayıt olabilirsiniz."
+        )
+
     # Check if email already registered
-    existing_user = db.query(User).filter(User.email == request.email.lower().strip()).first()
+    existing_user = db.query(User).filter(User.email == email_clean).first()
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -28,6 +28,13 @@ export const Register: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // .edu.tr kontrolü
+    if (!formData.email.toLowerCase().trim().endsWith('.edu.tr')) {
+      setError('Yalnızca üniversite e-posta adresleri (.edu.tr) ile kayıt olabilirsiniz. Örnek: ad.soyad@universite.edu.tr');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
