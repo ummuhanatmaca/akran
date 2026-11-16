@@ -19,6 +19,7 @@ from app.api.goals import router as goals_router
 from app.api.notifications import router as notifications_router
 from app.api.admin import router as admin_router
 from app.api.pomodoro import router as pomodoro_router
+from app.api.contact import router as contact_router
 
 import asyncio
 from app.core.database import SessionLocal
@@ -112,6 +113,7 @@ app.include_router(goals_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(pomodoro_router, prefix="/api")
+app.include_router(contact_router, prefix="/api")
 
 @app.get("/api/health", tags=["Sağlık Kontrolü"])
 def health_check():

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -73,6 +73,20 @@ def get_sent_requests(
         .order_by(SupportRequest.created_at.desc())
         .all()
     )
+    return [_format_support_request(r, db) for r in requests]
+
+@router.get("/requests/open", response_model=List[SupportRequestOut])
+def get_open_requests(
+    course_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(SupportRequest).filter(
+        SupportRequest.helper_id.is_(None),
+        SupportRequest.status == "pending"
+    )
+    if course_id:
+        query = query.filter(SupportRequest.course_id == course_id)
+    requests = query.order_by(SupportRequest.created_at.desc()).all()
     return [_format_support_request(r, db) for r in requests]
 
 @router.get("/requests/received", response_model=List[SupportRequestOut])

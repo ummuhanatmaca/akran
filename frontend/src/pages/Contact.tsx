@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Mail, MessageSquare, Send, CheckCircle2, Building, HelpCircle } from 'lucide-react';
+import { Mail, Send, CheckCircle2, Building, HelpCircle, Loader2, AlertCircle } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 export const Contact: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -10,9 +13,20 @@ export const Contact: React.FC = () => {
     message: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await apiClient.post('/contact', formData);
+      setSubmitted(true);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Mesajınız iletilirken bir hata oluştu. Lütfen tekrar deneyiniz.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -79,14 +93,14 @@ export const Contact: React.FC = () => {
               </div>
               <h3 className="text-base font-bold text-slate-900">Mesajınız Alındı</h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">
-                Geri bildiriminiz için teşekkür ederiz. İlgili konu en kısa sürede incelenecektir.
+                Geri bildiriminiz başarıyla iletildi. İlgili konu yöneticilerimiz tarafından incelenecektir.
               </p>
               <button
                 onClick={() => {
                   setSubmitted(false);
                   setFormData({ name: '', email: '', subject: 'Genel Geri Bildirim', message: '' });
                 }}
-                className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors"
+                className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Yeni Mesaj Gönder
               </button>
@@ -94,6 +108,13 @@ export const Contact: React.FC = () => {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <h2 className="text-base font-semibold text-slate-900">İletişim Formu</h2>
+
+              {error && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -105,7 +126,7 @@ export const Contact: React.FC = () => {
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Adınız"
+                    placeholder="Adınız Soyadınız"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-sky-500 transition-colors"
                   />
                 </div>
@@ -119,7 +140,7 @@ export const Contact: React.FC = () => {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="ogrenci@universite.edu.tr"
+                    placeholder="ornek@universite.edu.tr"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:bg-white focus:border-sky-500 transition-colors"
                   />
                 </div>
@@ -159,10 +180,20 @@ export const Contact: React.FC = () => {
               <div className="pt-2 flex justify-end">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs rounded-lg transition-colors inline-flex items-center gap-1.5"
+                  disabled={isLoading}
+                  className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-medium text-xs rounded-lg transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  Gönder
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Gönderiliyor...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      Gönder
+                    </>
+                  )}
                 </button>
               </div>
             </form>

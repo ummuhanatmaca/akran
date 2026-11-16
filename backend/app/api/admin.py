@@ -357,3 +357,41 @@ def toggle_quarantine_material(
     db.commit()
     return {"message": f"Materyal durumu '{m.scan_status}' olarak güncellendi."}
 
+
+
+# --- Contact Messages Moderation ---
+from app.models.contact import ContactMessage
+from app.schemas.contact import ContactMessageOut
+
+@router.get("/contact-messages", response_model=List[ContactMessageOut])
+def list_contact_messages(
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    return db.query(ContactMessage).order_by(ContactMessage.created_at.desc()).all()
+
+@router.put("/contact-messages/{message_id}/read")
+def mark_contact_message_read(
+    message_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    msg = db.query(ContactMessage).filter(ContactMessage.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mesaj bulunamadı.")
+    msg.is_read = True
+    db.commit()
+    return {"message": "Mesaj okundu olarak işaretlendi."}
+
+@router.delete("/contact-messages/{message_id}")
+def delete_contact_message(
+    message_id: int,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    msg = db.query(ContactMessage).filter(ContactMessage.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Mesaj bulunamadı.")
+    db.delete(msg)
+    db.commit()
+    return {"message": "Mesaj silindi."}

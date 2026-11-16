@@ -69,6 +69,14 @@ def ensure_database_schema(eng):
                 except Exception as b_err:
                     print(f"Auto-backfill notice: {b_err}")
 
+            # 3. contact_messages tablosu kontrolü
+            if "contact_messages" not in table_names:
+                try:
+                    from app.models.contact import ContactMessage
+                    ContactMessage.__table__.create(bind=eng, checkfirst=True)
+                except Exception as c_err:
+                    print(f"contact_messages table create notice: {c_err}")
+
             # 2. opportunities tablosu kontrolü
             if "opportunities" in table_names:
                 opp_cols = {c["name"] for c in inspector.get_columns("opportunities")}

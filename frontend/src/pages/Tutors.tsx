@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import { Course, TutorMatchResult } from '../types';
+import { Course, TutorMatchResult, SupportRequest } from '../types';
 import {
   Compass,
   Search,
@@ -9,7 +9,8 @@ import {
   Sparkles,
   ArrowRight,
   Loader2,
-  Info
+  Info,
+  CheckCircle
 } from 'lucide-react';
 
 export const Tutors: React.FC = () => {
@@ -26,6 +27,37 @@ export const Tutors: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Açık ders desteği talepleri state
+  const [openRequests, setOpenRequests] = useState<SupportRequest[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [acceptingId, setAcceptingId] = useState<number | null>(null);
+
+  const fetchOpenRequests = async () => {
+    setLoadingRequests(true);
+    try {
+      const url = selectedCourseId ? `/support/requests/open?course_id=${selectedCourseId}` : '/support/requests/open';
+      const res = await apiClient.get<SupportRequest[]>(url);
+      setOpenRequests(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingRequests(false);
+    }
+  };
+
+  const handleClaimRequest = async (requestId: number) => {
+    setAcceptingId(requestId);
+    try {
+      await apiClient.put(`/support/requests/${requestId}/status?status_action=accept`);
+      alert('Talebi başarıyla üstlendiniz! Canlı ders oturumu planlandı.');
+      await fetchOpenRequests();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Talep kabul edilirken bir hata oluştu. Giriş yaptığınızdan emin olun.');
+    } finally {
+      setAcceptingId(null);
+    }
+  };
+
   useEffect(() => {
     apiClient.get<Course[]>('/courses')
       .then((res) => {
@@ -41,6 +73,7 @@ export const Tutors: React.FC = () => {
   useEffect(() => {
     if (selectedCourseId) {
       handleSearch();
+      fetchOpenRequests();
     }
   }, [selectedCourseId]);
 
@@ -225,6 +258,84 @@ export const Tutors: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* SECTION: OPEN SUPPORT REQUESTS FOR THIS COURSE */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              Destek Bekleyen Akran Talepleri ({openRequests.length})
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {selectedCourse ? `${selectedCourse.code} dersinde` : 'Seçili derste'} diğer öğrencilerin açtığı yardım istekleri.
+            </p>
+          </div>
+          <Link
+            to={`/support/create?course_id=${selectedCourseId || ''}`}
+            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold rounded-lg text-xs transition-colors self-start sm:self-auto border border-sky-200"
+          >
+            + Ben de Talep Açmak İstiyorum
+          </Link>
+        </div>
+
+        {loadingRequests ? (
+          <div className="py-6 text-center">
+            <Loader2 className="w-5 h-5 text-sky-600 animate-spin mx-auto mb-1" />
+            <p className="text-xs text-slate-400">Talepler kontrol ediliyor...</p>
+          </div>
+        ) : openRequests.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-lg">
+            Bu ders için şu an açık bir öğrenci talebi bulunmuyor. Farklı bir ders seçebilir veya tüm talepleri görmek için üstteki &quot;Taleplerim &amp; Destek Havuzu&quot; butonunu kullanabilirsiniz.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {openRequests.map((req) => (
+              <div
+                key={req.id}
+                className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-sky-300 transition-all flex flex-col justify-between gap-3 shadow-xs"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100">
+                      {req.course?.code || 'Ders'}
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                      Akran Eğitmen Bekliyor
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-1">{req.topic_name}</h3>
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-2">
+                    {req.description || 'Ek açıklama girilmedi.'}
+                  </p>
+                  <div className="text-[11px] text-slate-500 space-y-0.5 border-t border-slate-200/60 pt-2">
+                    <div>Talep Eden: <strong className="text-slate-700 font-medium">{req.requester_name || 'Öğrenci'}</strong></div>
+                    <div>Görüşme: <strong>{req.mode === 'online' ? 'Çevrim İçi (Online)' : 'Yüz Yüze'}</strong> {req.preferred_schedule ? `• ${req.preferred_schedule}` : ''}</div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(req.created_at).toLocaleDateString('tr-TR')}
+                  </span>
+                  <button
+                    onClick={() => handleClaimRequest(req.id)}
+                    disabled={acceptingId === req.id}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                  >
+                    {acceptingId === req.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="w-3.5 h-3.5" />
+                    )}
+                    Desteği Üstlen & Kabul Et
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Results Section */}
       <div className="space-y-4">

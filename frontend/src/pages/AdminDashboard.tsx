@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient } from '../api/client';
-import { AdminStats, User, Opportunity } from '../types';
+import { AdminStats, User, Opportunity, ContactMessage } from '../types';
 import {
   ShieldAlert,
   Users,
   Compass,
   FileText,
   AlertTriangle,
+  Mail,
   CheckCircle,
   PlusCircle,
   Trash2,
@@ -25,7 +26,8 @@ import {
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
-  const [tab, setTab] = useState<'stats' | 'users' | 'opportunities' | 'reports' | 'sync_logs' | 'security'>('stats');
+  const [tab, setTab] = useState<'stats' | 'users' | 'opportunities' | 'reports' | 'sync_logs' | 'security' | 'messages'>('stats');
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -64,13 +66,14 @@ export const AdminDashboard: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [sRes, uRes, oRes, rRes, lRes, mRes] = await Promise.all([
+      const [sRes, uRes, oRes, rRes, lRes, mRes, cRes] = await Promise.all([
         apiClient.get<AdminStats>('/admin/stats'),
         apiClient.get<User[]>('/admin/users'),
         apiClient.get<Opportunity[]>('/opportunities'),
         apiClient.get<any[]>('/admin/reports'),
         apiClient.get<any[]>('/admin/opportunities/sync-logs').catch(() => ({ data: [] })),
         apiClient.get<any[]>('/admin/materials/security-audit').catch(() => ({ data: [] })),
+        apiClient.get<ContactMessage[]>('/admin/contact-messages').catch(() => ({ data: [] })),
       ]);
       setStats(sRes.data);
       setUsers(uRes.data);
@@ -78,6 +81,7 @@ export const AdminDashboard: React.FC = () => {
       setReports(rRes.data);
       setSyncLogs(lRes.data);
       setSecurityMaterials(mRes.data || []);
+      setContactMessages(cRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -100,6 +104,25 @@ export const AdminDashboard: React.FC = () => {
       alert('Senkronizasyon işlemi başarısız oldu: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleMarkMessageRead = async (id: number) => {
+    try {
+      await apiClient.put(`/admin/contact-messages/${id}/read`);
+      setContactMessages(prev => prev.map(m => m.id === id ? { ...m, is_read: true } : m));
+    } catch (err) {
+      alert('İşlem başarısız.');
+    }
+  };
+
+  const handleDeleteMessage = async (id: number) => {
+    if (!window.confirm('Bu iletişim mesajını silmek istediğinizden emin misiniz?')) return;
+    try {
+      await apiClient.delete(`/admin/contact-messages/${id}`);
+      setContactMessages(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      alert('Silme işlemi başarısız.');
     }
   };
 
@@ -335,6 +358,20 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           Telif & Şikayetler ({reports.length})
+        </button>
+        <button
+          onClick={() => setTab('messages')}
+          className={`py-2 px-4 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 ${
+            tab === 'messages' ? 'border-sky-600 text-sky-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <Mail className="w-3.5 h-3.5 text-sky-600" />
+          <span>İletişim Mesajları ({contactMessages.length})</span>
+          {contactMessages.filter(m => !m.is_read).length > 0 && (
+            <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold">
+              {contactMessages.filter(m => !m.is_read).length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setTab('security')}
@@ -674,6 +711,83 @@ export const AdminDashboard: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 7: CONTACT MESSAGES */}
+      {tab === 'messages' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-sky-600" />
+                Gelen İletişim & Geri Bildirim Mesajları ({contactMessages.length})
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Kullanıcıların iletişim panelinden gönderdiği mesaj ve öneriler burada listelenir.
+              </p>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              {contactMessages.filter(m => !m.is_read).length} okunmamış mesaj
+            </span>
+          </div>
+
+          {contactMessages.length === 0 ? (
+            <p className="text-xs text-slate-500 py-12 text-center bg-slate-50 rounded-xl">
+              Henüz platform üzerinden iletilen bir iletişim mesajı bulunmuyor.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {contactMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`p-4 rounded-xl border transition-colors ${
+                    msg.is_read ? 'bg-slate-50 border-slate-200' : 'bg-sky-50/40 border-sky-200'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-200/50">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${msg.is_read ? 'bg-slate-300' : 'bg-sky-500'}`} />
+                      <strong className="text-xs text-slate-900 font-bold">{msg.name}</strong>
+                      <a href={`mailto:${msg.email}`} className="text-xs text-sky-600 hover:underline">
+                        ({msg.email})
+                      </a>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-white border border-slate-200 text-slate-700">
+                        {msg.subject}
+                      </span>
+                      {!msg.is_read && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                          Yeni
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-400">
+                        {new Date(msg.created_at).toLocaleString('tr-TR')}
+                      </span>
+                      {!msg.is_read && (
+                        <button
+                          onClick={() => handleMarkMessageRead(msg.id)}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                        >
+                          Okundu
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteMessage(msg.id)}
+                        className="px-2.5 py-1 bg-white hover:bg-rose-50 hover:text-rose-600 border border-slate-200 text-slate-500 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">
+                    {msg.message}
+                  </p>
                 </div>
               ))}
             </div>

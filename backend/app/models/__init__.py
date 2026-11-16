@@ -15,6 +15,7 @@ from app.models.opportunity import (
 from app.models.goal import LearningGoal
 from app.models.notification import Notification
 from app.models.pomodoro import PomodoroSession
+from app.models.contact import ContactMessage
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "LearningGoal",
     "Notification",
     "PomodoroSession",
+    "ContactMessage",
 ]
