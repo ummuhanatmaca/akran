@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { Course, Opportunity, StudyMaterial } from '../types';
+import { useAuth } from '../context/AuthContext';
 import {
   Compass,
   FileText,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const Home: React.FC = () => {
+  const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -300,40 +302,42 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* 5. SOSYAL FAYDA BÖLÜMÜ */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-slate-900 rounded-xl p-8 sm:p-10 text-white border border-slate-800">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
-            <div className="lg:col-span-2 space-y-3">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 text-sky-300 text-xs font-semibold border border-slate-700">
-                <ShieldCheck className="w-3.5 h-3.5" /> Sosyal Fayda Odaklı
-              </span>
-              <h2 className="text-2xl font-bold text-white tracking-tight">
-                Eğitimde Fırsat Eşitliği ve Akran Dayanışması
-              </h2>
-              <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                Üniversite eğitimi fahiş özel ders ücretleriyle veya ulaşılamayan kaynaklarla zorlaşmamalıdır.
-                AKRAN, öğrencilerin bilgi ve zamanlarını karşılıksız paylaşarak birlikte yükselmelerini hedefler.
-                Birbirine öğreten öğrenciler hem konuyu daha derin kavrar hem de iş birliğine dayalı bir çalışma kültürü kazanır.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2.5 justify-center items-center lg:items-end">
-              <Link
-                to="/register"
-                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs text-center transition-colors shadow-xs"
-              >
-                Topluluğa Katıl
-              </Link>
-              <Link
-                to="/guides"
-                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs text-center border border-slate-700 transition-colors"
-              >
-                Proje Rehberlerini Oku
-              </Link>
+      {/* 5. SOSYAL FAYDA BÖLÜMÜ / TOPLULUĞA KATIL (Yalnızca giriş yapmamış ziyaretçilere gösterilir) */}
+      {!user && (
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-slate-900 rounded-xl p-8 sm:p-10 text-white border border-slate-800">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+              <div className="lg:col-span-2 space-y-3">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 text-sky-300 text-xs font-semibold border border-slate-700">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Sosyal Fayda Odaklı
+                </span>
+                <h2 className="text-2xl font-bold text-white tracking-tight">
+                  Eğitimde Fırsat Eşitliği ve Akran Dayanışması
+                </h2>
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                  Üniversite eğitimi fahiş özel ders ücretleriyle veya ulaşılamayan kaynaklarla zorlaşmamalıdır.
+                  AKRAN, öğrencilerin bilgi ve zamanlarını karşılıksız paylaşarak birlikte yükselmelerini hedefler.
+                  Birbirine öğreten öğrenciler hem konuyu daha derin kavrar hem de iş birliğine dayalı bir çalışma kültürü kazanır.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 justify-center items-stretch lg:items-end w-full lg:w-52">
+                <Link
+                  to="/register"
+                  className="w-full px-5 py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs text-center transition-colors shadow-xs"
+                >
+                  Topluluğa Katıl
+                </Link>
+                <Link
+                  to="/guides"
+                  className="w-full px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs text-center border border-slate-700 transition-colors"
+                >
+                  Proje Rehberlerini Oku
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };
