@@ -9,6 +9,7 @@ class AdminStatsOut(BaseModel):
     total_materials: int
     active_opportunities: int
     pending_reports: int
+    total_contact_messages: Optional[int] = 0
 
 class AdminUserUpdate(BaseModel):
     role: Optional[str] = None

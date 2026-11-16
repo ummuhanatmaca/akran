@@ -276,6 +276,7 @@ export interface AdminStats {
   total_materials: number;
   active_opportunities: number;
   pending_reports: number;
+  total_contact_messages?: number;
 }
 
 export type PomodoroMode = 'focus' | 'short_break' | 'long_break';

@@ -33,6 +33,7 @@ def get_system_stats(
     total_materials = db.query(StudyMaterial).count()
     active_opportunities = db.query(Opportunity).filter(Opportunity.status == "active").count()
     pending_reports = db.query(ContentReport).filter(ContentReport.status == "pending").count()
+    total_contact_messages = db.query(ContactMessage).count()
 
     return AdminStatsOut(
         total_users=total_users,
@@ -41,7 +42,8 @@ def get_system_stats(
         completed_sessions=completed_sessions,
         total_materials=total_materials,
         active_opportunities=active_opportunities,
-        pending_reports=pending_reports
+        pending_reports=pending_reports,
+        total_contact_messages=total_contact_messages
     )
 
 @router.get("/users", response_model=List[UserOut])

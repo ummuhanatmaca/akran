@@ -107,6 +107,21 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  const fetchContactMessages = async () => {
+    try {
+      const res = await apiClient.get<ContactMessage[]>('/admin/contact-messages');
+      setContactMessages(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'messages') {
+      fetchContactMessages();
+    }
+  }, [tab]);
+
   const handleMarkMessageRead = async (id: number) => {
     try {
       await apiClient.put(`/admin/contact-messages/${id}/read`);
@@ -386,7 +401,7 @@ export const AdminDashboard: React.FC = () => {
 
       {/* TAB 1: STATS */}
       {tab === 'stats' && stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-white p-5 rounded-xl border border-slate-200">
             <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1">Toplam Kullanıcı</span>
             <span className="text-2xl font-bold text-slate-900">{stats.total_users}</span>
@@ -406,6 +421,19 @@ export const AdminDashboard: React.FC = () => {
             <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1">Bilimsel Fırsatlar</span>
             <span className="text-2xl font-bold text-slate-900">{stats.active_opportunities}</span>
             <span className="text-xs text-amber-600 block mt-1 font-medium">Doğrulanmış İlan</span>
+          </div>
+          <div
+            onClick={() => setTab('messages')}
+            className="bg-white p-5 rounded-xl border border-slate-200 hover:border-sky-400 transition-colors cursor-pointer"
+          >
+            <span className="text-[11px] font-semibold text-slate-500 uppercase block mb-1 flex items-center justify-between">
+              <span>İletişim Mesajı</span>
+              <Mail className="w-3.5 h-3.5 text-sky-500" />
+            </span>
+            <span className="text-2xl font-bold text-slate-900">{contactMessages.length}</span>
+            <span className="text-xs text-sky-600 block mt-1 font-medium">
+              {contactMessages.filter(m => !m.is_read).length} Okunmamış →
+            </span>
           </div>
         </div>
       )}
@@ -731,9 +759,17 @@ export const AdminDashboard: React.FC = () => {
                 Kullanıcıların iletişim panelinden gönderdiği mesaj ve öneriler burada listelenir.
               </p>
             </div>
-            <span className="text-xs text-slate-500 font-medium">
-              {contactMessages.filter(m => !m.is_read).length} okunmamış mesaj
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-500 font-medium">
+                {contactMessages.filter(m => !m.is_read).length} okunmamış mesaj
+              </span>
+              <button
+                onClick={fetchContactMessages}
+                className="px-3 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg border border-sky-200 transition-colors cursor-pointer"
+              >
+                Yenile
+              </button>
+            </div>
           </div>
 
           {contactMessages.length === 0 ? (

@@ -1,17 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { Mail, Send, CheckCircle2, Building, HelpCircle, Loader2, AlertCircle } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 export const Contact: React.FC = () => {
+  const { user } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
+    name: user?.profile?.full_name || '',
+    email: user?.email || '',
     subject: 'Genel Geri Bildirim',
     message: '',
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || user.profile?.full_name || '',
+        email: prev.email || user.email || '',
+      }));
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
